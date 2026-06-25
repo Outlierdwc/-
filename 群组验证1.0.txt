@@ -1,10 +1,21 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-local GROUP_ID = 825946687 -- 群组ID
+local GROUP_ID = 825946687
+
+local WHITELIST = {
+    ["alqp"] = true,
+    ["Player2"] = true,
+    ["Player3"] = true,
+}
 
 if not LocalPlayer:IsInGroup(GROUP_ID) then
-    LocalPlayer:Kick("你没有购买此脚本，请你去购买")
+    LocalPlayer:Kick("未加入官方群组")
+    return
+end
+
+if not WHITELIST[LocalPlayer.Name] then
+    LocalPlayer:Kick("未获得授权")
     return
 end
 
