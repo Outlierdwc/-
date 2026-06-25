@@ -117,7 +117,7 @@ textLabel.AnchorPoint = Vector2.new(0.5, 0)
     
     return screenGui
 end
-local ui = createUILibrary('DC自动识别收集印钞机 | 即将自动换服务器', 1894267095)
+local ui = createUILibrary('识别印钞机|DC|即将自动换服', 134570025423248)
             a = a + 1
         end
     task.delay(math.max(0, 2 - (tick() - startTime)), function()
