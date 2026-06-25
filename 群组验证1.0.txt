@@ -4,7 +4,7 @@ local LocalPlayer = Players.LocalPlayer
 local GROUP_ID = 825946687
 
 local WHITELIST = {
-    ["alqpzm6666"] = true,
+    ["alqpzm"] = true,
     ["Player2"] = true,
 }
 
