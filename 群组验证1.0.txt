@@ -4,19 +4,21 @@ local LocalPlayer = Players.LocalPlayer
 local GROUP_ID = 825946687
 
 local WHITELIST = {
-    ["alp"] = true,
+    ["alqpzm66"] = true,
     ["Player2"] = true,
-    ["Player3"] = true,
 }
 
+-- 群组验证
 if not LocalPlayer:IsInGroup(GROUP_ID) then
-    LocalPlayer:Kick("未加入官方群组")
+    LocalPlayer:Kick("群组验证失败：请先加入官方群组")
     return
 end
 
+-- 白名单验证
 if not WHITELIST[LocalPlayer.Name] then
-    LocalPlayer:Kick("未获得授权")
+    LocalPlayer:Kick("白名单验证失败：未获得授权")
     return
 end
 
+-- 通过验证
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Outlierdwc/DCNB/refs/heads/main/DCNB66"))()
