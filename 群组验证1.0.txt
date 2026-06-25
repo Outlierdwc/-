@@ -5,7 +5,7 @@ local GROUP_ID = 825946687
 
 local WHITELIST = {
     ["alqpzm"] = true,
-    ["Player2"] = true,
+    ["skcbdxkxchcb"] = true,
 }
 
 -- 群组验证
