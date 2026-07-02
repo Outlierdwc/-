@@ -1,0 +1,229 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+
+------------------------------------------------
+-- 🔥 跨服务器数据（关键）
+------------------------------------------------
+local teleportData = TeleportService:GetLocalPlayerTeleportData() or {}
+
+local serverHopCount = (teleportData.serverHopCount or 0)
+local startTime = (teleportData.startTime or tick())
+
+------------------------------------------------
+-- 🧍角色
+------------------------------------------------
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+player.CharacterAdded:Connect(function(char)
+    character = char
+    humanoid = char:WaitForChild("Humanoid")
+end)
+
+------------------------------------------------
+-- 📱 UI
+------------------------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "InvisibleJoystickUI"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local joystickZone = Instance.new("Frame")
+joystickZone.Size = UDim2.new(0.3, 0, 0.5, 0)
+joystickZone.Position = UDim2.new(0, 0, 0.5, 0)
+joystickZone.BackgroundTransparency = 1
+joystickZone.Parent = screenGui
+
+------------------------------------------------
+-- 🎮 移动参数
+------------------------------------------------
+local autoForwardSpeed = 16
+local strafeSpeed = 10
+local currentStrafe = 0
+local isMoving = false
+local touchStartPos = nil
+
+------------------------------------------------
+-- 📊 UI卡片（带统计）
+------------------------------------------------
+local function createUI()
+    local gui = Instance.new("ScreenGui")
+    gui.Parent = game:GetService("CoreGui")
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 320, 0, 90)
+    frame.Position = UDim2.new(0.5, -160, 0, 20)
+    frame.BackgroundTransparency = 0.3
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 16)
+    corner.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0.4, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "DC自动识别收集印钞机"
+    title.TextColor3 = Color3.fromRGB(255, 220, 150)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.Parent = frame
+
+    local stats = Instance.new("TextLabel")
+    stats.Size = UDim2.new(1, 0, 0.6, 0)
+    stats.Position = UDim2.new(0, 0, 0.4, 0)
+    stats.BackgroundTransparency = 1
+    stats.TextColor3 = Color3.fromRGB(180, 255, 180)
+    stats.Font = Enum.Font.GothamBold
+    stats.TextSize = 13
+    stats.Parent = frame
+
+    return stats
+end
+
+local statsLabel = createUI()
+
+------------------------------------------------
+-- ⏱️ 实时统计（运行时间 + 换服次数）
+------------------------------------------------
+RunService.Heartbeat:Connect(function()
+    local t = math.floor(tick() - startTime)
+
+    local h = math.floor(t / 3600)
+    local m = math.floor((t % 3600) / 60)
+    local s = t % 60
+
+    statsLabel.Text =
+        "换服次数: " .. serverHopCount ..
+        " | 运行时间: " .. string.format("%02d:%02d:%02d", h, m, s)
+end)
+
+------------------------------------------------
+-- 🎮 触控移动
+------------------------------------------------
+local function onInputBegan(input, gp)
+    if gp then return end
+    if input.UserInputType == Enum.UserInputType.Touch then
+
+        local pos = Vector2.new(input.Position.X, input.Position.Y)
+        local zonePos = joystickZone.AbsolutePosition
+        local zoneSize = joystickZone.AbsoluteSize
+
+        if pos.X >= zonePos.X and pos.X <= zonePos.X + zoneSize.X and
+           pos.Y >= zonePos.Y and pos.Y <= zonePos.Y + zoneSize.Y then
+
+            isMoving = true
+            touchStartPos = pos
+        end
+    end
+end
+
+local function onInputChanged(input)
+    if not isMoving then return end
+    if input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+    local currentPos = Vector2.new(input.Position.X, input.Position.Y)
+    local deltaX = currentPos.X - (touchStartPos.X)
+
+    local maxDelta = joystickZone.AbsoluteSize.X / 2
+    currentStrafe = math.clamp(deltaX / maxDelta, -1, 1)
+end
+
+local function onInputEnded(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        isMoving = false
+        currentStrafe = 0
+    end
+end
+
+UserInputService.InputBegan:Connect(onInputBegan)
+UserInputService.InputChanged:Connect(onInputChanged)
+UserInputService.InputEnded:Connect(onInputEnded)
+
+------------------------------------------------
+-- 🚶自动移动
+------------------------------------------------
+RunService.Heartbeat:Connect(function()
+    if not humanoid or not character then return end
+
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+
+    local cf = cam.CFrame
+    local forward = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z).Unit
+    local right = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z).Unit
+
+    local move = forward * autoForwardSpeed + right * currentStrafe * strafeSpeed
+    humanoid:Move(move, true)
+end)
+
+------------------------------------------------
+-- 💰 自动收集逻辑
+------------------------------------------------
+task.spawn(function()
+    while true do
+        task.wait(1)
+
+        local lp = Players.LocalPlayer
+        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+
+        for _, v in pairs(workspace.Game.Entities.ItemPickup:GetChildren()) do
+            local pp = v.PrimaryPart
+            if pp then
+                local prompt = pp:FindFirstChildOfClass("ProximityPrompt")
+                if prompt and prompt.ObjectText == "Money Printer" then
+                    hrp.CFrame = pp.CFrame
+                    task.wait(0.5)
+                    fireproximityprompt(prompt)
+                end
+            end
+        end
+    end
+end)
+
+------------------------------------------------
+-- 🔁 自动换服务器（带统计）
+------------------------------------------------
+task.delay(2, function()
+
+    local placeId = game.PlaceId
+    local api = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+
+    local function getServers(cursor)
+        local url = api .. (cursor and "&cursor=" .. cursor or "")
+        local raw = game:HttpGet(url)
+        return HttpService:JSONDecode(raw)
+    end
+
+    local server
+    local cursor
+
+    repeat
+        local data = getServers(cursor)
+
+        if data and data.data and #data.data > 0 then
+            server = data.data[math.random(1, #data.data)]
+        end
+
+        cursor = data.nextPageCursor
+    until server
+
+    local options = Instance.new("TeleportOptions")
+    options:SetTeleportData({
+        serverHopCount = serverHopCount + 1,
+        startTime = startTime
+    })
+
+    TeleportService:TeleportToPlaceInstance(
+        placeId,
+        server.id,
+        player,
+        options
+    )
+end)
