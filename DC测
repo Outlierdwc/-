@@ -1,15 +1,3 @@
-local TeleportService = game:GetService("TeleportService")
-
--- 从上一个服务器带来的数据
-local teleportData = TeleportService:GetLocalPlayerTeleportData()
-
--- 默认次数 = 0
-local serverSwitchCount = 0
-
--- 如果不是第一次进入，就读取
-if teleportData and teleportData.serverSwitchCount then
-    serverSwitchCount = teleportData.serverSwitchCount
-end
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -102,38 +90,32 @@ local function createUILibrary(text, imageId)
     screenGui.Parent = game:GetService("CoreGui")
     
     local mainFrame = Instance.new("Frame")
-    local countLabel = Instance.new("TextLabel")
-countLabel.Name = "ServerCountLabel"
-countLabel.BackgroundTransparency = 1
-countLabel.Size = UDim2.new(1, 0, 0.25, 0)
-countLabel.Position = UDim2.new(0, 0, 0.75, 0)
-countLabel.Font = Enum.Font.GothamBold
-countLabel.TextSize = 16
-countLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
-countLabel.Text = "换服务器次数: " .. serverSwitchCount
-countLabel.Parent = mainFrame
-    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 30)
     mainFrame.BackgroundTransparency = 0.3
-    mainFrame.Size = UDim2.new(0, 300, 0, 150)
-    mainFrame.Position = UDim2.new(0.5, -150, 0.8, -75)
+    mainFrame.Size = UDim2.new(0, 300, 0, 75)
+    mainFrame.AnchorPoint = Vector2.new(0.5, 0)
+    mainFrame.Position = UDim2.new(0.5, 0, 0, 20)
     mainFrame.Parent = screenGui
-    local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0,20)
-Corner.Parent = mainFrame
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 20) -- 圆角大小
+    UICorner.Parent = mainFrame
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Color3.fromRGB(255, 215, 0)
+    Stroke.Thickness = 2
+    Stroke.Parent = mainFrame
+   
     local textLabel = Instance.new("TextLabel")
     textLabel.Text = text
-    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.TextColor3 = Color3.fromRGB(255, 240, 180)
     textLabel.TextSize = 16
     textLabel.Font = Enum.Font.GothamBold
     textLabel.BackgroundTransparency = 1
-    textLabel.Position = UDim2.new(0,0,0.05,0)
-    textLabel.Position = UDim2.new(0.5, 0, 0.2, 0)
-textLabel.AnchorPoint = Vector2.new(0.5, 0)
+    textLabel.Size = UDim2.new(1, 0, 0.4, 0)
     textLabel.Parent = mainFrame
     
     local imageLabel = Instance.new("ImageLabel")
     imageLabel.Image = "rbxassetid://"..imageId
-    imageLabel.Size = UDim2.new(0.5,0,0.4,0)
+    imageLabel.Size = UDim2.new(0.7, 0, 0.5, 0)
     imageLabel.Position = UDim2.new(0.15, 0, 0.4, 0)
     imageLabel.BackgroundTransparency = 1
     imageLabel.ScaleType = Enum.ScaleType.Fit
@@ -141,42 +123,60 @@ textLabel.AnchorPoint = Vector2.new(0.5, 0)
     
     return screenGui
 end
-local ui = createUILibrary('识别印钞机|DC|即将自动换服', 134570025423248)
+local ui = createUILibrary('DC自动识别收集印钞机 | 即将自动换服务器', 1894267095)
             a = a + 1
         end
-    task.delay(math.max(0, 5 - (tick() - startTime)), function()
+    task.delay(math.max(0, 3 - (tick() - startTime)), function()
 local Http = game:GetService("HttpService")
 local TPS = game:GetService("TeleportService")
-local Api = "https://games.roblox.com/v1/games/"
+local Players = game:GetService("Players")
 
-local _place = game.PlaceId
-local _servers = Api.._place.."/servers/Public?sortOrder=Asc&limit=100"
-function ListServers(cursor)
-    local Raw = game:HttpGet(_servers.. ((cursor and "&cursor="..cursor) or ""))
-    return Http:JSONDecode(Raw)
+local Place = game.PlaceId
+local Api = "https://games.roblox.com/v1/games/"..Place.."/servers/Public?sortOrder=Asc&limit=100"
+
+local function ListServers(cursor)
+    local raw = game:HttpGet(Api .. (cursor and "&cursor="..cursor or ""))
+    return Http:JSONDecode(raw)
 end
 
-local Server, Next; repeat
-    local Servers = ListServers(Next)
-    local numServers = #Servers.data
-    if numServers > 0 then
-        local randomIndex = math.random(1, numServers)
-        Server = Servers.data[randomIndex] 
+local function Hop()
+    while true do
+        local cursor = nil
+
+        repeat
+            local servers = ListServers(cursor)
+
+            local list = {}
+
+            for _,v in ipairs(servers.data) do
+                -- 有空位且不是当前服务器
+                if v.playing < v.maxPlayers and v.id ~= game.JobId then
+                    table.insert(list,v)
+                end
+            end
+
+            if #list > 0 then
+                local server = list[math.random(#list)]
+
+                local ok = pcall(function()
+                    TPS:TeleportToPlaceInstance(
+                        Place,
+                        server.id,
+                        Players.LocalPlayer
+                    )
+                end)
+
+                if ok then
+                    return
+                end
+            end
+
+            cursor = servers.nextPageCursor
+        until not cursor
+
+        -- 全部失败，等2秒重新获取服务器列表
+        task.wait(2)
     end
-    Next = Servers.nextPageCursor
-until Server
-serverSwitchCount = serverSwitchCount + 1
+end
 
-local teleportOptions = Instance.new("TeleportOptions")
-
-teleportOptions:SetTeleportData({
-    serverSwitchCount = serverSwitchCount
-})
-
-TPS:TeleportToPlaceInstance(
-    _place,
-    Server.id,
-    game:GetService("Players").LocalPlayer,
-    teleportOptions
-)
-    end)
+Hop()
