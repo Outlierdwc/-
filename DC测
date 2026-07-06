@@ -147,18 +147,5 @@ local Server, Next; repeat
     end
     Next = Servers.nextPageCursor
 until Server
-local success = false
-local tries = 0
-
-repeat
-    tries += 1
-    success = pcall(function()
-        TPS:TeleportToPlaceInstance(_place, Server.id, player)
-    end)
-
-    if not success then
-        task.wait(1)
-    end
-until success or tries >= 5
 TPS:TeleportToPlaceInstance(_place,Server.id,game:GetService('Players').LocalPlayer)
     end)
